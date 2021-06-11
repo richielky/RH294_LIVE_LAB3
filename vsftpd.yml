@@ -1,1 +1,55 @@
+---
+- name: install vsftpd
+  hosts: ftp-site
+  tasks:
+  - name: Install vsftpd
+    yum:
+      name: vsftpd
+      state: installed
+  - name: Start and Enable vsftpd
+    service:
+      name: vsftpd
+      state: started
+      enabled: yes
+  - name: Open Firewall Port 21 TCP
+    firewalld:
+      service: ftp
+      permanent: yes
+      state: enabled
 
+- name: Configure vsftpd Using Jinja Template
+  hosts: ftp-site
+  vars:
+    anonymous_enable: yes
+    local_enable: yes
+    write_enable: yes
+    anon_upload_enable: yes
+  tasks:
+  - name: Use Jinja Template by Copying FTP Config File
+    template:
+      src: vsftpd.j2
+      dest: /etc/vsftpd/vsftpd.conf
+
+- name: Configure vsftpd SELinux and Permission
+  hosts: ftp-site
+  tasks:
+  - name: Set Permissions
+    file:
+      path: /var/ftp/pub
+      mode: '0777'
+  - name: Set SELinux Boolean
+    seboolean:
+      name: ftpd_anon_write
+      state: yes
+      persistent: yes
+  - name: Set SELinux Policy
+    sefcontext:
+      target: /var/ftp/pub
+      setype: public_content_rw_t
+      state: present
+    notify:
+      - run restorecon
+
+  handlers:
+  - name: run restorecon
+    command: restorecon -vvR /var/ftp/pub
